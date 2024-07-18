@@ -10,7 +10,7 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from src.datasets import ThingsMEGDataset
-from src.models import BasicConvClassifier, ImprovedConvClassifier
+from src.models import ImprovedConvClassifier
 from src.utils import set_seed, CosineScheduler, set_lr
 
 
@@ -39,9 +39,6 @@ def run(args: DictConfig):
     # ------------------
     #       Model
     # ------------------
-    # model = BasicConvClassifier(
-    #     train_set.num_classes, train_set.seq_len, train_set.num_channels
-    # ).to(args.device)
     model = ImprovedConvClassifier(
         train_set.num_classes, train_set.seq_len, train_set.num_channels
     ).to(args.device)
@@ -52,7 +49,7 @@ def run(args: DictConfig):
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95), weight_decay=0.05)
 
     # ------------------
-    #     Scheduer
+    #     Scheduler
     # ------------------
     scheduler = CosineScheduler(epochs=args.epochs, lr=args.lr, warmup_length=5)
 
@@ -106,7 +103,6 @@ def run(args: DictConfig):
             cprint("New best.", "cyan")
             torch.save(model.state_dict(), os.path.join(logdir, "model_best.pt"))
             max_val_acc = np.mean(val_acc)
-            
     
     # ----------------------------------
     #  Start evaluation with best model

@@ -10,7 +10,7 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from src.datasets import ThingsMEGDataset
-from src.models import BasicConvClassifier
+from src.models import BasicConvClassifier, ImprovedConvClassifier 
 from src.utils import set_seed
 
 
@@ -23,7 +23,7 @@ def run(args: DictConfig):
     # ------------------
     #    Dataloader
     # ------------------    
-    test_set = ThingsMEGDataset("test", args.data_dir)
+    test_set = ThingsMEGDataset("test", args.data_dir, apply_preprocessing=True)
     test_loader = torch.utils.data.DataLoader(
         test_set, shuffle=False, batch_size=args.batch_size, num_workers=args.num_workers
     )
@@ -31,7 +31,7 @@ def run(args: DictConfig):
     # ------------------
     #       Model
     # ------------------
-    model = BasicConvClassifier(
+    model = ImprovedConvClassifier(
         test_set.num_classes, test_set.seq_len, test_set.num_channels
     ).to(args.device)
     model.load_state_dict(torch.load(args.model_path, map_location=args.device))
@@ -41,8 +41,8 @@ def run(args: DictConfig):
     # ------------------ 
     preds = [] 
     model.eval()
-    for X, subject_idxs in tqdm(test_loader, desc="Validation"):        
-        preds.append(model(X.to(args.device)).detach().cpu())
+    for X, subject_idxs in tqdm(test_loader, desc="Evaluation"):        
+        preds.append(model(X.to(args.device)).cpu())
         
     preds = torch.cat(preds, dim=0).numpy()
     np.save(os.path.join(savedir, "submission"), preds)
