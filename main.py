@@ -10,8 +10,8 @@ from termcolor import cprint
 from tqdm import tqdm
 
 from src.datasets import ThingsMEGDataset
-from src.models import BasicConvClassifier
-from src.utils import set_seed
+from src.models import BasicConvClassifier, ImprovedConvClassifier
+from src.utils import set_seed, CosineScheduler, set_lr
 
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
@@ -27,11 +27,11 @@ def run(args: DictConfig):
     # ------------------
     loader_args = {"batch_size": args.batch_size, "num_workers": args.num_workers}
     
-    train_set = ThingsMEGDataset("train", args.data_dir)
+    train_set = ThingsMEGDataset("train", args.data_dir, apply_preprocessing=True)
     train_loader = torch.utils.data.DataLoader(train_set, shuffle=True, **loader_args)
-    val_set = ThingsMEGDataset("val", args.data_dir)
+    val_set = ThingsMEGDataset("val", args.data_dir,  apply_preprocessing=True)
     val_loader = torch.utils.data.DataLoader(val_set, shuffle=False, **loader_args)
-    test_set = ThingsMEGDataset("test", args.data_dir)
+    test_set = ThingsMEGDataset("test", args.data_dir,  apply_preprocessing=True)
     test_loader = torch.utils.data.DataLoader(
         test_set, shuffle=False, batch_size=args.batch_size, num_workers=args.num_workers
     )
@@ -39,14 +39,22 @@ def run(args: DictConfig):
     # ------------------
     #       Model
     # ------------------
-    model = BasicConvClassifier(
+    # model = BasicConvClassifier(
+    #     train_set.num_classes, train_set.seq_len, train_set.num_channels
+    # ).to(args.device)
+    model = ImprovedConvClassifier(
         train_set.num_classes, train_set.seq_len, train_set.num_channels
     ).to(args.device)
 
     # ------------------
     #     Optimizer
     # ------------------
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95), weight_decay=0.05)
+
+    # ------------------
+    #     Scheduer
+    # ------------------
+    scheduler = CosineScheduler(epochs=args.epochs, lr=args.lr, warmup_length=5)
 
     # ------------------
     #   Start training
@@ -55,10 +63,12 @@ def run(args: DictConfig):
     accuracy = Accuracy(
         task="multiclass", num_classes=train_set.num_classes, top_k=10
     ).to(args.device)
-      
+    
     for epoch in range(args.epochs):
         print(f"Epoch {epoch+1}/{args.epochs}")
-        
+        new_lr = scheduler(epoch)
+        set_lr(new_lr, optimizer)
+
         train_loss, train_acc, val_loss, val_acc = [], [], [], []
         
         model.train()
